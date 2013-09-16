@@ -14,13 +14,11 @@ function gcd(a, b) {
 var abs = Math.abs;
 
 function Rational(n, d) {
-	if (!d) {
-		if (d != null) {
-			n = NaN;
-		}
+	if (d == null) {
 		d = 1;
+	}
 
-	} else if (n === 0 || n % 1) {
+	if (!n || !d || n % 1 || n % 1) {
 		n /= d;
 		d = 1;
 
