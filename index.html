@@ -5,7 +5,7 @@
 	<meta charset="utf-8">
 	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
 
-	<title>LP</title>
+	<title>LPlite</title>
 
 	<style>
 		table {
@@ -151,7 +151,7 @@ $(function () {
 		if (!matrix) return;
 
 		var $input = $(this);
-		var newValue = this.value.trim();
+		var newValue = $.trim(this.value);
 		var oldValue = $input.data('original-value');
 
 		var changed = newValue !== oldValue
@@ -363,8 +363,8 @@ function cropTable($table) {
 		var cell = this.firstChild;
 		while (cell) {
 			if (cell.nodeType === 1) {;
-				var input = cell.querySelector('input');
-				if (input && input.value.trim() == '') {
+				var input = cell.getElementsByTagName('input')[0];
+				if (input && $.trim(input.value) == '') {
 					r[j] = cell;
 				} else {
 					b = true;
@@ -393,7 +393,7 @@ function cropTable($table) {
 
 function memOriginalvalues($table) {
 	$table.find('input').each(function () {
-		$(this).data('original-value', this.value.trim());
+		$(this).data('original-value', $.trim(this.value));
 	});
 }
 
@@ -411,7 +411,7 @@ function frizeTable($table) {
 }
 
 function prityName(text) {
-	var m = /(\w)(\d)?/.exec(text.trim());
+	var m = /(\w)(\d)?/.exec($.trim(text));
 	if (m) {
 		text = '<i>' + m[1] + '</i>';
 		if (m[2]) {

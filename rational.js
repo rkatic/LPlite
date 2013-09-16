@@ -15,10 +15,10 @@ var abs = Math.abs;
 
 function Rational(n, d) {
 	if (!d) {
-		d = 1;
 		if (d != null) {
 			n = NaN;
 		}
+		d = 1;
 
 	} else if (n === 0 || n % 1) {
 		n /= d;
