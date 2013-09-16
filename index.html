@@ -62,6 +62,10 @@
 			font-size: 200%;
 		}
 
+		#RestartBtn {
+			display: none;
+		}
+
 		.changed {
 			font-weight: bold;
 		}
@@ -89,31 +93,32 @@
 
 <body>
 
+<button id="RestartBtn">Restart</button>
 <div id="history"></div>
 
 <table id="inputTable">
 	<tr class="first-row">
 		<th>Basic variables</th>
 		<th class="variable-name"><input type="text"></th>
-		<th class="variable-name last-variable"><input type="text"</th>
+		<th class="variable-name"><input type="text"</th>
 		<th class="rhs">R.H.S.</th>
 	</tr>
 	<tr>
 		<td class="basic-variable"><input type="text"></th>
 		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element"><input type="text"></td>
 		<td class="matrix-element rhs"><input type="text"></td>
 	</tr>
 	<tr>
 		<td class="basic-variable"><input type="text"></th>
 		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element"><input type="text"></td>
 		<td class="matrix-element rhs"><input type="text"></td>
 	</tr>
 	<tr>
 		<td class="basic-variable"><input type="text"></th>
 		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element"><input type="text"></td>
 		<td class="matrix-element rhs"><input type="text"></td>
 	</tr>
 </table>
@@ -131,15 +136,19 @@ $(function () {
 
 	$inputTable.delegate('tr:last-child', 'focus', function () {
 		if (matrix) return;
-		$(this).clone().appendTo(this.parentNode);
+		$(this)
+			.clone()
+			.find('input')
+				.val('')
+			.end()
+			.appendTo(this.parentNode);
 	});
 
-	$inputTable.delegate('th.last-variable', 'focus', function () {
-		if (matrix) return;
-		$inputTable.find('.last-variable').removeClass('last-variable').each(function () {
+	$inputTable.delegate('th', 'focus', function () {
+		if (matrix || $(this).next().is('.variable-name')) return;
+		$inputTable.find('.rhs').prev().each(function () {
 			$(this)
 				.clone()
-				.addClass('last-variable')
 				.find('input')
 					.val('')
 				.end()
@@ -188,6 +197,8 @@ $(function () {
 			$inputTable.find('.matrix-element > input')
 				.filter(function () { return this.value === ''; })
 				.val('0');
+
+			$('#RestartBtn').show();
 		}
 		var $savedTable = frizeTable($inputTable.clone().removeAttr('id'));
 		var $historyItem = $('<div>')
@@ -245,16 +256,37 @@ $(function () {
 		$(this).closest('tr').children('th, td').addClass('higlightedH');
 	});
 
-	function resetInputTable($table) {
+	$('#RestartBtn').click(function () {
+		if (!window.confirm("Restart from the beginning?")) {
+			return;
+		}
+
+		var $history = $('#history');
+		resetInputTable($history.find('table').first(), true);
+		$history.empty();
+		$(this).hide();
+	});
+
+	function resetInputTable($table, all) {
 		if ($table) {
-			var selector = '.matrix-element, .basic-variable';
+			var selector = '.matrix-element, .basic-variable' +
+				(all ? ', .variable-name' : '');
 			var $dstCells = $inputTable.find(selector);
 			$table.find(selector).each(function (i) {
-				$dstCells[i].firstChild.value = $(this).text();
+				var $input = $dstCells.eq(i).children('input');
+				if ($input.length === 0) {
+					$input = $dstCells.eq(i).empty()
+						.append('<input type="text">').children('input');
+				}
+				$input[0].value = $(this).text();
 			});
 		}
-		loadMatrix($inputTable);
-		memOriginalvalues($inputTable);
+		if (all) {
+			matrix = null;
+		} else {
+			loadMatrix($inputTable);
+			memOriginalvalues($inputTable);
+		}
 		$inputTable.find('.changed').removeClass('changed');
 		matrixChanged = false;
 	}
