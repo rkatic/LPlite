@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+	<title>LP</title>
+
+	<style>
+		table {
+			text-align: center;
+			vertical-align: middle;
+			border-spacing: 0;
+			/*border: 1px solid;*/
+		}
+
+		th, td {
+			width: 80px;
+			height: 18pt;
+		}
+
+		tr:first-child th {
+			border-bottom: 1px solid;
+		}
+
+		table input[type="text"] {
+			text-align: center;
+		}
+
+		table .changed > input[type="text"] {
+			border: 2px solid;
+		}
+
+		th:first-child, td:first-child, .rhs {
+			border-right: 1px solid;
+		}
+
+		/*th:last-child, td:last-child {*/
+		/*	border-left: 1px solid;*/
+		/*}*/
+
+		.ratio {
+			border-left: 1px solid;
+			border-right: 1px solid;
+		}
+
+		input[type="text"] {
+			width: 93%;
+		}
+
+		input-error[type="text"] {
+			border: 2px solid;
+		}
+
+		#history div {
+			padding: 30px 0 30px 0;
+		}
+
+		#NextBtn {
+			margin: 30px;
+			font-size: 200%;
+		}
+
+		.changed {
+			font-weight: bold;
+		}
+
+		.higlightedV {
+			border-left: 1px dashed;
+			border-right: 1px dashed;
+		}
+
+		.higlightedH {
+			border-top: 1px dashed;
+			border-bottom: 1px dashed;
+		}
+
+		@media print {
+			button, #inputTable {
+				display: none;
+			}
+		}
+	</style>
+
+	<script src=./jquery.min.js></script>
+	<script src=./rational.js></script>
+</head>
+
+<body>
+
+<div id="history"></div>
+
+<table id="inputTable">
+	<tr class="first-row">
+		<th>Basic variables</th>
+		<th class="variable-name"><input type="text"></th>
+		<th class="variable-name last-variable"><input type="text"</th>
+		<th class="rhs">R.H.S.</th>
+	</tr>
+	<tr>
+		<td class="basic-variable"><input type="text"></th>
+		<td class="matrix-element"><input type="text"></td>
+		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element rhs"><input type="text"></td>
+	</tr>
+	<tr>
+		<td class="basic-variable"><input type="text"></th>
+		<td class="matrix-element"><input type="text"></td>
+		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element rhs"><input type="text"></td>
+	</tr>
+	<tr>
+		<td class="basic-variable"><input type="text"></th>
+		<td class="matrix-element"><input type="text"></td>
+		<td class="matrix-element last-variable"><input type="text"></td>
+		<td class="matrix-element rhs"><input type="text"></td>
+	</tr>
+</table>
+
+<button id="NextBtn">Next</button>
+
+<script>
+var matrix;
+var matrixChanged = false;
+
+$(function () {
+	var $inputTable = $('#inputTable');
+
+	$inputTable.find('input').val('');
+
+	$inputTable.delegate('tr:last-child', 'focus', function () {
+		if (matrix) return;
+		$(this).clone().appendTo(this.parentNode);
+	});
+
+	$inputTable.delegate('th.last-variable', 'focus', function () {
+		if (matrix) return;
+		$inputTable.find('.last-variable').removeClass('last-variable').each(function () {
+			$(this)
+				.clone()
+				.addClass('last-variable')
+				.find('input')
+					.val('')
+				.end()
+				.insertAfter(this);
+		});
+	});
+
+	$inputTable.delegate('input', 'blur', function () {
+		if (!matrix) return;
+
+		var $input = $(this);
+		var newValue = this.value.trim();
+		var oldValue = $input.data('original-value');
+
+		var changed = newValue !== oldValue
+
+		if (!changed) {
+			return;
+		}
+
+		var $cell = $input.parent();
+
+		if ($cell.is('.matrix-element')) {
+			try {
+				changed = updateMatrix($cell, newValue);
+
+			} catch (e) {
+				changed = false;
+				alert(e);
+				this.value = oldValue;
+			}
+		}
+
+		if (changed) {
+			$cell.addClass('changed');
+		}
+	});
+
+
+	$('#NextBtn').click(function () {
+		if (!matrix) {
+			cropTable($inputTable);
+			$inputTable.find('.variable-name').each(function () {
+				$(this).html(prityName(this.firstChild.value));
+			});
+			$inputTable.find('.matrix-element > input')
+				.filter(function () { return this.value === ''; })
+				.val('0');
+		}
+		var $savedTable = frizeTable($inputTable.clone().removeAttr('id'));
+		var $historyItem = $('<div>')
+			.addClass('history-item')
+			.append($savedTable)
+			.append('<button class="restore-btn">Restore</button>');
+		$('#history').append($historyItem);
+		resetInputTable();
+	});
+
+	$('#history').delegate('.restore-btn', 'click', function () {
+		var $item = $(this).closest('.history-item');
+		$item.nextAll('.history-item').remove();
+		$table = $item.find('table');
+		resetInputTable($table);
+	});
+
+	$('#history').delegate('.history-item:last-child .variable-name', 'click', function () {
+		if (matrixChanged) return;
+
+		var $row = $(this).closest('tr');
+		var $table = $row.closest('table');
+		var j = $.inArray(this, $row.children('.variable-name'));
+
+		if ($table.find('.ratio').length === 0) {
+			var $tr = $table.find('tr');
+			$tr.first().append('<td class="ratio-space"></td><th class="ratio">Ratio</th>');
+			$tr.slice(1).append('<td class="ratio-space"></td><td class="ratio"></td>');
+		}
+
+		var columnAlreadyHiglighted = $(this).is('.higlightedV');
+
+		$table.find('.higlightedV').removeClass('higlightedV');
+		$table.find('.higlightedH').removeClass('higlightedH');
+
+		if (columnAlreadyHiglighted) {
+			$table.find('.ratio, .ratio-space').remove();
+			return;
+		}
+
+		var rhsIndex = (matrix[0] || []).length - 1;
+
+		$(this).addClass('higlightedV');
+
+		$table.find('td.ratio').each(function (i) {
+			var row = matrix[i];
+			$(this).text( row[rhsIndex].divide(row[j]).toString() )
+				.siblings('.matrix-element').eq(j).addClass('higlightedV');
+		});
+	});
+
+	$('#history').delegate('.history-item:last-child td.ratio', 'click', function () {
+		if (matrixChanged) return;
+		$(this).closest('table').find('.higlightedH').removeClass('higlightedH');
+		$(this).closest('tr').children('th, td').addClass('higlightedH');
+	});
+
+	function resetInputTable($table) {
+		if ($table) {
+			var selector = '.matrix-element, .basic-variable';
+			var $dstCells = $inputTable.find(selector);
+			$table.find(selector).each(function (i) {
+				$dstCells[i].firstChild.value = $(this).text();
+			});
+		}
+		loadMatrix($inputTable);
+		memOriginalvalues($inputTable);
+		$inputTable.find('.changed').removeClass('changed');
+		matrixChanged = false;
+	}
+});
+
+function loadMatrix($table) {
+	matrix = [];
+
+	$table.find('tr').each(function () {
+		var vector = [];
+		$(this).find('.matrix-element > input').each(function () {
+			vector.push(Rational.fromString(this.value || '0'));
+		});
+		if (vector.length) {
+			matrix.push(vector);
+		}
+	});
+}
+
+function updateMatrix($cell, value) {
+	var $row = $cell.closest('tr');
+	var $rowCells = $row.children('.matrix-element');
+	var columnIndex = $rowCells.index($cell);
+	var rowAIndex = $row.parent().children('tr:has(.matrix-element)').index($row);
+
+	var rowA = matrix[rowAIndex];
+	var rowB;
+	var oldValue = rowA[columnIndex];
+	var newValue = Rational.fromString(value);
+	var multipler;
+	var rowLen = rowA.length;
+
+	var i, j;
+
+	if (newValue.equals(oldValue)) {
+		return false;
+	}
+
+	var changedPos = [];
+	for (i = 0; i < rowLen; ++i) {
+		if (i !== columnIndex && $rowCells.eq(i).is('.changed')) {
+			changedPos.push(i);
+		};
+	}
+
+	function validateRowB(row) {
+		if (row[columnIndex].n === 0) {
+			return false;
+		}
+
+		for (var i = 0; i < changedPos.length; ++i) {
+			if (row[changedPos[i]].n !== 0) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	if (newValue.n && oldValue.n && validateRowB(rowA)) {
+		rowB = rowA;
+
+		multipler = newValue.divide(oldValue);
+		for (j = 0; j < rowLen; ++j) {
+			rowA[j] = rowA[j].multiply(multipler);
+		}
+	}
+
+	if (!rowB) {
+		for (i = 0; i < matrix.length; ++i) {
+			if (i !== rowAIndex && validateRowB(matrix[i])) {
+				rowB = matrix[i];
+				if (Math.abs(rowB[columnIndex]) === 1) {
+					break;
+				}
+			}
+		}
+
+		if (!rowB) {
+			throw new Error('Invalid operation');
+		}
+
+		multipler = newValue.minus( oldValue ).divide( rowB[columnIndex] );
+
+		for (j = 0; j < rowLen; ++j) {
+			rowA[j] = rowB[j].multiply( multipler ).plus( rowA[j] );
+		}
+	}
+
+	$rowCells.each(function (i) {
+		var value = rowA[i].toString();
+		$(this.firstChild).val(value).data('original-value', value);
+	});
+
+	matrixChanged = true;
+	return true;
+}
+
+function cropTable($table) {
+	var m = []; bj = [];
+
+	$table.find('tr').each(function () {
+		var r = [];
+		var j = 0;
+		var b = false;
+		var cell = this.firstChild;
+		while (cell) {
+			if (cell.nodeType === 1) {;
+				var input = cell.querySelector('input');
+				if (input && input.value.trim() == '') {
+					r[j] = cell;
+				} else {
+					b = true;
+					bj[j] = true;
+				}
+				++j;
+			}
+			cell = cell.nextSibling;
+		}
+		if (!b) {
+			$(this).remove();
+		} else {
+			m.push(r);
+		}
+	});
+
+	for (var j = 0; j < bj.length; ++j) {
+		if (!bj[j]) {
+			for (var i = 0; i < m.length; ++i) {
+				$(m[i][j]).remove();
+			}
+		}
+	}
+}
+
+
+function memOriginalvalues($table) {
+	$table.find('input').each(function () {
+		$(this).data('original-value', this.value.trim());
+	});
+}
+
+
+function frizeTable($table) {
+	$table.find('.basic-variable > input').each(function () {
+		$(this.parentNode).html(prityName(this.value));
+	});
+
+	$table.find('td > input').each(function () {
+		$(this.parentNode).text(this.value);
+	});
+
+	return $table;
+}
+
+function prityName(text) {
+	var m = /(\w)(\d)?/.exec(text.trim());
+	if (m) {
+		text = '<i>' + m[1] + '</i>';
+		if (m[2]) {
+			text += '<sub>' + m[2] + '</sub>'
+		}
+	}
+	return text;
+}
+
+</script>
+
+
+</body>
+</html>
