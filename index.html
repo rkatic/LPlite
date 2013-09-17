@@ -388,35 +388,30 @@ function updateMatrix($cell, value) {
 }
 
 function cropTable($table) {
-	var notNamed = [];
-
 	var $tr = $table.find('tr');
 
 	$tr.first().children('th').each(function (i) {
-		var input = $(this).children('input')[0];
-		if (input && $.trim(input.value) == '') {
-			notNamed[i] = true;
-			$(this).remove();
+		if (hasEmptyInput(this)) {
+			getColumn(this).remove();
 		}
 	});
 
-	$tr.slice(1).each(function () {
-		var b = false;
-		$(this).children('th, td').each(function (i) {
-			if (notNamed[i]) {
-				$(this).remove();
-
-			} else {
-				var input = $(this).children('input')[0];
-				if (!input || $.trim(input.value) != '') {
-					b = true;
-				}
+	$tr.slice(1).filter(function () {
+		var hasValues = false;
+		$(this).children('th, td').each(function () {
+			if (!hasEmptyInput(this)) {
+				hasValues = true;
+				return false;
 			}
 		});
-		if (!b) {
-			$(this).remove();
-		}
-	});
+		return !hasValues;
+	})
+	.remove();
+
+	function hasEmptyInput(cell) {
+		var input = $(this).children('input')[0];
+		return !!input && $.trim(input.value) != '';
+	}
 }
 
 
@@ -448,6 +443,21 @@ function prityName(text) {
 		}
 	}
 	return text;
+}
+
+function getColumn(el) {
+	return getColumnByIndex(getColumnIndex(el));
+}
+
+function getColumnByIndex(el, index) {
+	return $(el).closest('table').find('tr').map(function () {
+		return $(this).children('td, th')[index];
+	});
+}
+
+function getColumnIndex(el) {
+	var $cell = $(el).closest('th, td');
+	return $cell.parent().children('th, td').index($cell);
 }
 
 </script>
