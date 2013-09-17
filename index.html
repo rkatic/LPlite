@@ -82,7 +82,7 @@
 
 		@media print {
 			button, #inputTable {
-				display: none;
+				display: none !important;
 			}
 		}
 	</style>
@@ -130,11 +130,9 @@ var matrix;
 var matrixChanged = false;
 
 $(function () {
-	var $inputTable = $('#inputTable');
+	$('#inputTable').find('input').val('');
 
-	$inputTable.find('input').val('');
-
-	$inputTable.delegate('tr:last-child', 'focus', function () {
+	$(document).delegate('#inputTable tr:last-child', 'focus', function () {
 		if (matrix) return;
 		$(this)
 			.clone()
@@ -144,9 +142,9 @@ $(function () {
 			.appendTo(this.parentNode);
 	});
 
-	$inputTable.delegate('th', 'focus', function () {
+	$(document).delegate('#inputTable th', 'focus', function () {
 		if (matrix || $(this).next().is('.variable-name')) return;
-		$inputTable.find('.rhs').prev().each(function () {
+		$(this).closest('table').find('.rhs').prev().each(function () {
 			$(this)
 				.clone()
 				.find('input')
@@ -156,14 +154,14 @@ $(function () {
 		});
 	});
 
-	$inputTable.delegate('input', 'blur', function () {
+	$(document).delegate('#inputTable input', 'blur', function () {
 		if (!matrix) return;
 
 		var $input = $(this);
 		var newValue = $.trim(this.value);
 		var oldValue = $input.data('original-value');
 
-		var changed = newValue !== oldValue
+		var changed = newValue !== oldValue;
 
 		if (!changed) {
 			return;
@@ -189,6 +187,7 @@ $(function () {
 
 
 	$('#NextBtn').click(function () {
+		$inputTable = $('#inputTable');
 		if (!matrix) {
 			cropTable($inputTable);
 			$inputTable.find('.variable-name').each(function () {
@@ -209,11 +208,11 @@ $(function () {
 		resetInputTable();
 	});
 
-	$('#history').delegate('.restore-btn', 'click', function () {
+	$('#history').delegate('.restore-btn', 'click', function (event) {
 		var $item = $(this).closest('.history-item');
 		$item.nextAll('.history-item').remove();
 		$table = $item.find('table');
-		resetInputTable($table);
+		resetInputTable($table, event.ctrlKey);
 	});
 
 	$('#history').delegate('.history-item:last-child .variable-name', 'click', function () {
@@ -229,15 +228,8 @@ $(function () {
 			$tr.slice(1).append('<td class="ratio-space"></td><td class="ratio"></td>');
 		}
 
-		var columnAlreadyHiglighted = $(this).is('.higlightedV');
-
 		$table.find('.higlightedV').removeClass('higlightedV');
 		$table.find('.higlightedH').removeClass('higlightedH');
-
-		if (columnAlreadyHiglighted) {
-			$table.find('.ratio, .ratio-space').remove();
-			return;
-		}
 
 		var rhsIndex = (matrix[0] || []).length - 1;
 
@@ -267,30 +259,40 @@ $(function () {
 		$(this).hide();
 	});
 
-	function resetInputTable($table, all) {
-		if ($table) {
-			var selector = '.matrix-element, .basic-variable' +
-				(all ? ', .variable-name' : '');
-			var $dstCells = $inputTable.find(selector);
-			$table.find(selector).each(function (i) {
-				var $input = $dstCells.eq(i).children('input');
-				if ($input.length === 0) {
-					$input = $dstCells.eq(i).empty()
-						.append('<input type="text">').children('input');
-				}
-				$input[0].value = $(this).text();
-			});
-		}
-		if (all) {
-			matrix = null;
-		} else {
-			loadMatrix($inputTable);
-			memOriginalvalues($inputTable);
-		}
-		$inputTable.find('.changed').removeClass('changed');
-		matrixChanged = false;
-	}
 });
+
+function resetInputTable($table, all) {
+	$inputTable = $('#inputTable');
+	if ($table) {
+		var selector = '.matrix-element, .basic-variable' +
+			(all ? ', .variable-name' : '');
+
+		$table.find('.higlightedV').removeClass('higlightedV');
+		$table.find('.higlightedH').removeClass('higlightedH');
+		$table.find('.ratio, .ratio-space').remove();
+
+		$newInputTable = $table.clone();
+
+		$newInputTable.find(selector).each(function (i) {
+			$cell = $(this);
+			$('<input type="text">')
+				.val($cell.text())
+				.appendTo($cell.empty());
+		});
+
+		$inputTable.after($newInputTable).remove();
+		$newInputTable[0].id = 'inputTable';
+		$inputTable = $newInputTable;
+	}
+	if (all) {
+		matrix = null;
+	} else {
+		loadMatrix($inputTable);
+		memOriginalvalues($inputTable);
+	}
+	$inputTable.find('.changed').removeClass('changed');
+	matrixChanged = false;
+}
 
 function loadMatrix($table) {
 	matrix = [];
@@ -386,40 +388,35 @@ function updateMatrix($cell, value) {
 }
 
 function cropTable($table) {
-	var m = []; bj = [];
+	var notNamed = [];
 
-	$table.find('tr').each(function () {
-		var r = [];
-		var j = 0;
-		var b = false;
-		var cell = this.firstChild;
-		while (cell) {
-			if (cell.nodeType === 1) {;
-				var input = cell.getElementsByTagName('input')[0];
-				if (input && $.trim(input.value) == '') {
-					r[j] = cell;
-				} else {
-					b = true;
-					bj[j] = true;
-				}
-				++j;
-			}
-			cell = cell.nextSibling;
-		}
-		if (!b) {
+	var $tr = $table.find('tr');
+
+	$tr.first().children('th').each(function (i) {
+		var input = $(this).children('input')[0];
+		if (input && $.trim(input.value) == '') {
+			notNamed[i] = true;
 			$(this).remove();
-		} else {
-			m.push(r);
 		}
 	});
 
-	for (var j = 0; j < bj.length; ++j) {
-		if (!bj[j]) {
-			for (var i = 0; i < m.length; ++i) {
-				$(m[i][j]).remove();
+	$tr.slice(1).each(function () {
+		var b = false;
+		$(this).children('th, td').each(function (i) {
+			if (notNamed[i]) {
+				$(this).remove();
+
+			} else {
+				var input = $(this).children('input')[0];
+				if (!input || $.trim(input.value) != '') {
+					b = true;
+				}
 			}
+		});
+		if (!b) {
+			$(this).remove();
 		}
-	}
+	});
 }
 
 
