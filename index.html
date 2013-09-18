@@ -194,7 +194,7 @@ $(function () {
 				$(this).html(prityName(this.firstChild.value));
 			});
 			$inputTable.find('.matrix-element > input')
-				.filter(function () { return this.value === ''; })
+				.filter(valueIsEmpty)
 				.val('0');
 
 			$('#RestartBtn').show();
@@ -388,30 +388,19 @@ function updateMatrix($cell, value) {
 }
 
 function cropTable($table) {
-	var $tr = $table.find('tr');
-
-	$tr.first().children('th').each(function (i) {
-		if (hasEmptyInput(this)) {
+	$table.find('.variable-name > input')
+		.filter(valueIsEmpty)
+		.each(function () {
 			getColumn(this).remove();
-		}
-	});
-
-	$tr.slice(1).filter(function () {
-		var hasValues = false;
-		$(this).children('th, td').each(function () {
-			if (!hasEmptyInput(this)) {
-				hasValues = true;
-				return false;
-			}
 		});
-		return !hasValues;
-	})
-	.remove();
 
-	function hasEmptyInput(cell) {
-		var input = $(this).children('input')[0];
-		return !!input && $.trim(input.value) != '';
-	}
+	$table.find('tr')
+		.filter(function () {
+			var $cells = $(this).children('th, td');
+			var $emptyInputs = $cells.children('input').filter(valueIsEmpty);
+			return $emptyInputs.length === $cells.length;
+		})
+		.remove();
 }
 
 
@@ -445,8 +434,12 @@ function prityName(text) {
 	return text;
 }
 
+function valueIsEmpty() {
+	return $.trim(this.value) == '';
+}
+
 function getColumn(el) {
-	return getColumnByIndex(getColumnIndex(el));
+	return getColumnByIndex(el, getColumnIndex(el));
 }
 
 function getColumnByIndex(el, index) {
