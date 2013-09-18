@@ -216,11 +216,9 @@ $(function () {
 	});
 
 	$('#history').delegate('.history-item:last-child .variable-name', 'click', function () {
-		if (matrixChanged) return;
+		if (!matrix || matrixChanged) return;
 
-		var $row = $(this).closest('tr');
-		var $table = $row.closest('table');
-		var j = $.inArray(this, $row.children('.variable-name'));
+		var $table = $(this).closest('table');
 
 		if ($table.find('.ratio').length === 0) {
 			var $tr = $table.find('tr');
@@ -231,14 +229,13 @@ $(function () {
 		$table.find('.higlightedV').removeClass('higlightedV');
 		$table.find('.higlightedH').removeClass('higlightedH');
 
-		var rhsIndex = (matrix[0] || []).length - 1;
+		getColumn(this).addClass('higlightedV');
 
-		$(this).addClass('higlightedV');
+		var j = $(this).parent().children('.variable-name').index(this);
+		var r = matrix[0].length - 1;
 
 		$table.find('td.ratio').each(function (i) {
-			var row = matrix[i];
-			$(this).text( row[rhsIndex].divide(row[j]).toString() )
-				.siblings('.matrix-element').eq(j).addClass('higlightedV');
+			$(this).text( matrix[i][r].divide( matrix[i][j] ).toString() );
 		});
 	});
 
@@ -439,18 +436,12 @@ function valueIsEmpty() {
 }
 
 function getColumn(el) {
-	return getColumnByIndex(el, getColumnIndex(el));
-}
-
-function getColumnByIndex(el, index) {
-	return $(el).closest('table').find('tr').map(function () {
-		return $(this).children('td, th')[index];
-	});
-}
-
-function getColumnIndex(el) {
 	var $cell = $(el).closest('th, td');
-	return $cell.parent().children('th, td').index($cell);
+	var $row = $cell.parent();
+	var index = $row.children('th, td').index($cell[0]);
+	return $row.parent().children('tr').map(function () {
+		return $(this).children('th, td')[index];
+	});
 }
 
 </script>
