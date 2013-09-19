@@ -147,44 +147,52 @@ $.fn.Map = function( func ) {
 
 var matrix;
 var matrixChanged = false;
+var singleTable = true;
 
 $(function () {
-	resetInputTable(null, true, true);
+	$(document).delegate('#inputTable input', 'focus', function () {
+		if (singleTable) return;
+		$(this).data('original-value', this.value);
+	});
 
 	$(document).delegate('#inputTable tr:last-child', 'focus', function () {
 		if (matrix) return;
-		$(this)
-			.clone()
-			.find('input')
-				.val('')
-			.end()
-			.appendTo(this.parentNode);
+		resetClone(this).appendTo(this.parentNode);
 	});
 
 	$(document).delegate('#inputTable th', 'focus', function () {
 		if (matrix || $(this).next().is('.variable-name')) return;
 		$(this).closest('table').find('.rhs').prev().each(function () {
-			$(this)
-				.clone()
-				.find('input')
-					.val('')
-				.end()
-				.insertAfter(this);
+			resetClone(this).insertAfter(this);
 		});
 	});
+
+	function resetClone(el) {
+		return $(el).clone()
+			.removeClass('changed')
+			.find('.changed')
+				.removeClass('changed')
+			.end()
+			.find('input')
+				.val('')
+			.end()
+	}
 
 	$(document).delegate('#inputTable .variable-name', 'click', function () {
 		if (!matrix) return;
 
-		resetInputTable(null, true);
+		matrix = null;
+		$inputTable.find('.variable-name').eachOne(makeEditable);
 	});
 
 	$(document).delegate('#inputTable input', 'blur', function () {
+		if (singleTable) return;
+
 		var $input = $(this);
 		var newValue = $.trim(this.value);
 		var oldValue = $input.data('original-value');
 
-		var changed = oldValue != null && newValue !== oldValue;
+		var changed = newValue !== oldValue;
 
 		if (!changed) {
 			return;
@@ -230,6 +238,7 @@ $(function () {
 			.append('<button class="restore-btn">Restore</button>');
 		$('#history').append($historyItem);
 
+		singleTable = false;
 		resetInputTable();
 	});
 
@@ -237,7 +246,7 @@ $(function () {
 		var $item = $(this).closest('.history-item');
 		$item.nextAll('.history-item').remove();
 		$table = $item.find('table');
-		resetInputTable($table, event.ctrlKey);
+		resetInputTable($table);
 	});
 
 	$('#history').delegate('.history-item:last-child .variable-name', 'click', function () {
@@ -275,15 +284,17 @@ $(function () {
 			return;
 		}
 
+		singleTable = true;
 		var $history = $('#history');
 		resetInputTable($history.find('table').first(), true);
 		$history.empty();
 		$(this).hide();
 	});
 
+	resetInputTable(null, true);
 });
 
-function resetInputTable($table, full, first) {
+function resetInputTable($table, first) {
 	$inputTable = $('#inputTable');
 
 	if ($table) {
@@ -298,21 +309,14 @@ function resetInputTable($table, full, first) {
 	}
 
 	$inputTable.find('.matrix-element, .basic-variable').eachOne(makeEditable);
+	$inputTable.find('.changed').removeClass('changed');
 
-	if (full) {
-		matrix = null;
+
+	if (first) {
 		$inputTable.find('.variable-name').eachOne(makeEditable);
 
 	} else {
 		loadMatrix($inputTable);
-	}
-
-	$inputTable.find('.changed').removeClass('changed');
-
-	if (!first) {
-		$inputTable.find('input').each(function () {
-			$(this).data('original-value', $.trim(this.value));
-		});
 	}
 
 	matrixChanged = false;
