@@ -99,26 +99,12 @@
 <table id="inputTable">
 	<tr class="first-row">
 		<th>Basic variables</th>
-		<th class="variable-name"><input type="text"></th>
-		<th class="variable-name"><input type="text"</th>
+		<th class="variable-name"></th>
 		<th class="rhs">R.H.S.</th>
 	</tr>
 	<tr>
 		<td class="basic-variable"><input type="text"></th>
-		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element rhs"><input type="text"></td>
-	</tr>
-	<tr>
-		<td class="basic-variable"><input type="text"></th>
-		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element rhs"><input type="text"></td>
-	</tr>
-	<tr>
-		<td class="basic-variable"><input type="text"></th>
-		<td class="matrix-element"><input type="text"></td>
-		<td class="matrix-element"><input type="text"></td>
+		<td class="matrix-element"></td>
 		<td class="matrix-element rhs"><input type="text"></td>
 	</tr>
 </table>
@@ -126,11 +112,44 @@
 <button id="NextBtn">Next</button>
 
 <script>
+
+$.fn.eachOne = function( func ) {
+	for ( var i = 0, l = this.length; i < l; ++i ) {
+		func( this[i], i, this );
+	}
+	return this;
+};
+
+$.fn.Filter = function( func ) {
+	var array = [];
+	for ( var i = 0, l = this.length; i < l; ++i ) {
+		if ( func( this[i], i, this ) ) {
+			array.push( this[i] );
+		}
+	}
+	return this.pushStack( array );
+};
+
+$.fn.Map = function( func ) {
+	var array = [], ret;
+	var hasOwn = array.hasOwnProperty;
+	for ( var i = 0, l = this.length; i < l; ++i ) {
+		ret = func( this[i], i, this );
+		if ( ret ) {
+			if ( 'jquery' in ret && !hasOwn.call(ret, 'jquery') ) {
+				ret = ret.toArray();
+			}
+			array.push( ret );
+		}
+	}
+	return this.pushStack( array.concat.apply([], array) );
+}
+
 var matrix;
 var matrixChanged = false;
 
 $(function () {
-	$('#inputTable').find('input').val('');
+	resetInputTable(null, true, true);
 
 	$(document).delegate('#inputTable tr:last-child', 'focus', function () {
 		if (matrix) return;
@@ -154,14 +173,18 @@ $(function () {
 		});
 	});
 
-	$(document).delegate('#inputTable input', 'blur', function () {
+	$(document).delegate('#inputTable .variable-name', 'click', function () {
 		if (!matrix) return;
 
+		resetInputTable(null, true);
+	});
+
+	$(document).delegate('#inputTable input', 'blur', function () {
 		var $input = $(this);
 		var newValue = $.trim(this.value);
 		var oldValue = $input.data('original-value');
 
-		var changed = newValue !== oldValue;
+		var changed = oldValue != null && newValue !== oldValue;
 
 		if (!changed) {
 			return;
@@ -169,7 +192,7 @@ $(function () {
 
 		var $cell = $input.parent();
 
-		if ($cell.is('.matrix-element')) {
+		if (matrix && $cell.is('.matrix-element')) {
 			try {
 				changed = updateMatrix($cell, newValue);
 
@@ -188,23 +211,25 @@ $(function () {
 
 	$('#NextBtn').click(function () {
 		$inputTable = $('#inputTable');
+
 		if (!matrix) {
 			cropTable($inputTable);
-			$inputTable.find('.variable-name').each(function () {
-				$(this).html(prityName(this.firstChild.value));
-			});
+			$inputTable.find('.variable-name > input').eachOne(freezeInput);
 			$inputTable.find('.matrix-element > input')
-				.filter(valueIsEmpty)
+				.Filter(inputIsEmpty)
 				.val('0');
 
 			$('#RestartBtn').show();
 		}
-		var $savedTable = frizeTable($inputTable.clone().removeAttr('id'));
+
+		var $savedTable = $inputTable.clone().removeAttr('id');
+		$savedTable.find('input').eachOne(freezeInput);
 		var $historyItem = $('<div>')
 			.addClass('history-item')
 			.append($savedTable)
 			.append('<button class="restore-btn">Restore</button>');
 		$('#history').append($historyItem);
+
 		resetInputTable();
 	});
 
@@ -258,36 +283,38 @@ $(function () {
 
 });
 
-function resetInputTable($table, all) {
+function resetInputTable($table, full, first) {
 	$inputTable = $('#inputTable');
-	if ($table) {
-		var selector = '.matrix-element, .basic-variable' +
-			(all ? ', .variable-name' : '');
 
+	if ($table) {
 		$table.find('.higlightedV').removeClass('higlightedV');
 		$table.find('.higlightedH').removeClass('higlightedH');
 		$table.find('.ratio, .ratio-space').remove();
 
 		$newInputTable = $table.clone();
-
-		$newInputTable.find(selector).each(function (i) {
-			$cell = $(this);
-			$('<input type="text">')
-				.val($cell.text())
-				.appendTo($cell.empty());
-		});
-
 		$inputTable.after($newInputTable).remove();
 		$newInputTable[0].id = 'inputTable';
 		$inputTable = $newInputTable;
 	}
-	if (all) {
+
+	$inputTable.find('.matrix-element, .basic-variable').eachOne(makeEditable);
+
+	if (full) {
 		matrix = null;
+		$inputTable.find('.variable-name').eachOne(makeEditable);
+
 	} else {
 		loadMatrix($inputTable);
-		memOriginalvalues($inputTable);
 	}
+
 	$inputTable.find('.changed').removeClass('changed');
+
+	if (!first) {
+		$inputTable.find('input').each(function () {
+			$(this).data('original-value', $.trim(this.value));
+		});
+	}
+
 	matrixChanged = false;
 }
 
@@ -296,8 +323,8 @@ function loadMatrix($table) {
 
 	$table.find('tr').each(function () {
 		var vector = [];
-		$(this).find('.matrix-element > input').each(function () {
-			vector.push(Rational.fromString(this.value || '0'));
+		$(this).find('.matrix-element > input').each(function (i) {
+			vector[i] = Rational.fromString(this.value);
 		});
 		if (vector.length) {
 			matrix.push(vector);
@@ -309,6 +336,7 @@ function updateMatrix($cell, value) {
 	var $row = $cell.closest('tr');
 	var $rowCells = $row.children('.matrix-element');
 	var columnIndex = $rowCells.index($cell);
+	var $tr = $row.parent().children('tr');
 	var rowAIndex = $row.parent().children('tr:has(.matrix-element)').index($row);
 
 	var rowA = matrix[rowAIndex];
@@ -377,7 +405,7 @@ function updateMatrix($cell, value) {
 
 	$rowCells.each(function (i) {
 		var value = rowA[i].toString();
-		$(this.firstChild).val(value).data('original-value', value);
+		$(this).children('input').val(value).data('original-value', value);
 	});
 
 	matrixChanged = true;
@@ -386,54 +414,51 @@ function updateMatrix($cell, value) {
 
 function cropTable($table) {
 	$table.find('.variable-name > input')
-		.filter(valueIsEmpty)
-		.each(function () {
-			getColumn(this).remove();
-		});
+		.Filter(inputIsEmpty)
+		.Map(getColumn)
+		.remove();
 
 	$table.find('tr')
 		.filter(function () {
 			var $cells = $(this).children('th, td');
-			var $emptyInputs = $cells.children('input').filter(valueIsEmpty);
+			var $emptyInputs = $cells.children('input').Filter(inputIsEmpty);
 			return $emptyInputs.length === $cells.length;
 		})
 		.remove();
 }
 
 
-function memOriginalvalues($table) {
-	$table.find('input').each(function () {
-		$(this).data('original-value', $.trim(this.value));
-	});
+function makeEditable(el) {
+	$cell = $(el);
+	if ($cell.find('input').length === 0) {
+		$('<input type="text">')
+			.val($cell.text())
+			.appendTo($cell.empty());
+	}
 }
 
+function freezeInput(input) {
+	var $parent = $(input.parentNode);
+	var text = $.trim(input.value);
+	var m = /([a-zA-Z])(\d)?/.exec(text);
 
-function frizeTable($table) {
-	$table.find('.basic-variable > input').each(function () {
-		$(this.parentNode).html(prityName(this.value));
-	});
-
-	$table.find('td > input').each(function () {
-		$(this.parentNode).text(this.value);
-	});
-
-	return $table;
-}
-
-function prityName(text) {
-	var m = /(\w)(\d)?/.exec($.trim(text));
 	if (m) {
 		text = '<i>' + m[1] + '</i>';
 		if (m[2]) {
 			text += '<sub>' + m[2] + '</sub>'
 		}
+
+		$parent.html(text);
+	} else {
+
+		$parent.text(text);
 	}
-	return text;
 }
 
-function valueIsEmpty() {
-	return $.trim(this.value) == '';
+function inputIsEmpty(input) {
+	return $.trim(input.value) == '';
 }
+
 
 function getColumn(el) {
 	var $cell = $(el).closest('th, td');
