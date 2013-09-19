@@ -18,7 +18,7 @@ function Rational(n, d) {
 		d = 1;
 	}
 
-	if (!n || !d || n % 1 || n % 1) {
+	if (!n || !d || n !== (n|0) || d !== (d|0)) {
 		n /= d;
 		d = 1;
 
